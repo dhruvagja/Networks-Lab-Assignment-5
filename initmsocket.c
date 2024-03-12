@@ -39,9 +39,52 @@
 
 
 void* receiver(void *arg){
+    fd_set readfds;
     while(1){
-        fd_set readfds;
+        
+        FD_ZERO(&readfds);
+        
+        for(int i=0; i<N; i++){
+            if(SM[i].free == 0){
+                FD_SET(SM[i].udp_sockfd, &readfds);
+            }
+        }
 
+        struct timeval timeout;
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
+
+        int ret = select(FD_SETSIZE, &readfds, NULL, NULL, &timeout);
+        if(ret == 0){
+
+            continue;
+        }
+        else{
+            for(int i=0; i<N; i++){
+                if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
+                    // receive
+                    struct sockaddr_in other_addr;
+                    int len = sizeof(other_addr);
+                    int n = recvfrom(SM[i].udp_sockfd, SM[i].recv_buffer[SM[i].rwnd.size], MAXLINE, MSG_DONTWAIT, (struct sockaddr*)&other_addr, &len);
+                    if(n == -1){
+                        if(errno == EAGAIN || errno == EWOULDBLOCK){
+                            continue;
+                        }
+                        else{
+                            perror("recvfrom() failed");
+                            exit(1);
+                        }
+                    }
+                    else{
+                        // SM[i].recv_buffer_empty[SM[i].rwnd.size] = 0;
+                        // SM[i].rwnd.sequence_numbers[SM[i].rwnd.size] = SM[i].rwnd.size;
+                        // SM[i].rwnd.size++;
+                        
+                    }
+                }
+            }
+            
+        }
 
     }
 }
