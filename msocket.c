@@ -25,7 +25,6 @@ void init_sem(){
 	pop.sem_flg = vop.sem_flg = 0;
 	pop.sem_op = -1 ; vop.sem_op = 1;
 
-
 }
 
 int m_socket(int domain, int type, int protocol){
@@ -118,7 +117,6 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
         return -1;
     }
 
-    // doubt :/
     int isspace = 0;
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
         if(SM[socket].send_buffer_empty[i] == 0){
