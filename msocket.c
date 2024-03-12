@@ -50,6 +50,11 @@ int m_socket(int domain, int type, int protocol){
                 SM[i].free = 0;
                 SM[i].pid = getpid();
                 SM[i].udp_sockfd = SOCK_INFO.sockfd;
+                memset(SM[i].ip_other, 0, sizeof(SM[i].ip_other));
+                SM[i].port_other = 0;   
+                memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
+                memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
+                
                 reset();
                 // signal_sem(&sem1);
                 return i;
