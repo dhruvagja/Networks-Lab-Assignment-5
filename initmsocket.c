@@ -7,7 +7,7 @@
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
 #include <errno.h>
-
+#include <sys/time.h>
 #include <pthread.h>
 #include "msocket.h"
 
@@ -39,7 +39,11 @@
 
 
 void* receiver(void *arg){
+    while(1){
+        fd_set readfds;
 
+
+    }
 }
 
 void* sender(void *arg){

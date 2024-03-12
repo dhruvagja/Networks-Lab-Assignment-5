@@ -49,26 +49,25 @@ typedef struct {
 SM_ SM[N];
 
 typedef struct {
-    int sockfd=0;
+    int sockfd;
     char ip[16];
-    int port=0;
-    errno_t err=0;
+    int port;
+    int err;
 }sockinfo;
 
-sockinfo SOCK_INFO;
+sockinfo SOCK_INFO = {0, "", 0, 0};
 
 void reset();
 
 // create two semaphores sem1 and sem2
-int sem1 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
-int sem2 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
+int sem1, sem2;
 
 // semctl(sem1, 0, SETVAL, 0);
 // semctl(sem2, 0, SETVAL, 1);
 
 void init_sem();
 
-int m_socket(int domain, int type, int protocol=SOCK_MTP);
+int m_socket(int domain, int type, int protocol);
 // taking ip as string rn, can take differently
 int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest_port);
 ssize_t m_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
