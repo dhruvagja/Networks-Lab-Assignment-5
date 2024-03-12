@@ -18,6 +18,8 @@ void reset(){
 }
 
 void init_sem(){
+    sem1 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
+    sem2 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
 
@@ -141,7 +143,40 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
 }
 
 ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len){
+    // check if the socket is valid
+    if(SM[socket].udp_sockfd == -1){
+        errno = EBADF;
+        return -1;
+    }
 
+    // get the source port and ip from the sockaddr
+    struct sockaddr_in *src = (struct sockaddr_in *)address;
+    int src_port = ntohs(src->sin_port);
+    char *src_ip = inet_ntoa(src->sin_addr);
+
+    // check if the source port and ip are same as the one in the SM
+    if(strcmp(SM[socket].ip_other, src_ip) != 0 || SM[socket].port_other != src_port){
+        // ENOTFOUND errno?
+        errno = EDESTADDRREQ;
+        return -1;
+    }
+
+    int ismsg = 0;
+    for(int i = 0; i< MAX_WINDOW_SIZE; i++){
+        if(SM[socket].recv_buffer_empty[i] == 1){
+            ismsg = 1;
+            SM[socket].recv_buffer_empty[i] = 0;
+            strcpy(buffer, SM[socket].recv_buffer[i]);
+            memset(SM[socket].recv_buffer[i], 0,sizeof(SM[socket].recv_buffer[i]));
+            // Returning the length of the message received.
+            return strlen(buffer);
+        }
+    }
+
+    if(!ismsg){
+        errno = ENOBUFS;
+        return -1;
+    }
 }
 
 int m_close(int socket){
