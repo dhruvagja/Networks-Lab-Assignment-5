@@ -46,7 +46,7 @@ typedef struct {
     receiver_window rwnd;
 }SM_;
 
-SM_ SM[N];
+// SM_ SM[N];
 
 typedef struct {
     int sockfd;
@@ -55,7 +55,7 @@ typedef struct {
     int err;
 }sockinfo;
 
-sockinfo SOCK_INFO = {0, "", 0, 0};
+// sockinfo SOCK_INFO = {0, "", 0, 0};
 
 void reset();
 
@@ -73,3 +73,4 @@ int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest
 ssize_t m_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
 int m_close(int socket);
+int dropMessage(float prob);

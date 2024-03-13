@@ -11,10 +11,17 @@
 #include "msocket.h"
 
 void reset(){
-    SOCK_INFO.sockfd = 0;
-    SOCK_INFO.err = 0;
-    SOCK_INFO.port = 0;
-    memset(SOCK_INFO.ip, 0, sizeof(SOCK_INFO.ip));
+
+    // get sockinfo shared memory
+    key_t key = ftok(".", 'a');
+    int shmid = shmget(key, sizeof(sockinfo), 0777|IPC_CREAT);
+    // initialize the shared memory
+    sockinfo *SOCK_INFO = (sockinfo*)shmat(shmid, 0, 0);
+
+    SOCK_INFO->sockfd = 0;
+    SOCK_INFO->err = 0;
+    SOCK_INFO->port = 0;
+    memset(SOCK_INFO->ip, 0, sizeof(SOCK_INFO->ip));
 }
 
 void init_sem(){
@@ -26,11 +33,22 @@ void init_sem(){
     pop.sem_num = vop.sem_num = 0;
 	pop.sem_flg = vop.sem_flg = 0;
 	pop.sem_op = -1 ; vop.sem_op = 1;
-
 }
 
 int m_socket(int domain, int type, int protocol){
     int free_entry = 0;
+
+    // get SM shared memory
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
+    // get sockinfo shared memory
+    key_t key = ftok(".", 'a');
+    int shmid = shmget(key, sizeof(sockinfo), 0777|IPC_CREAT);
+    // initialize the shared memory
+    sockinfo *SOCK_INFO = (sockinfo*)shmat(shmid, 0, 0);
+
     for(int i=0; i<N; i++){
         if(SM[i].free == 1){
             // free_entry = 1;
@@ -44,19 +62,20 @@ int m_socket(int domain, int type, int protocol){
             signal_sem(&sem1);
             wait_sem(&sem2);
 
-            if(SOCK_INFO.sockfd == -1){
-                errno = SOCK_INFO.err;
+            if(SOCK_INFO->sockfd == -1){
+                errno = SOCK_INFO->err;
                 return -1;
             }
             else{
                 SM[i].free = 0;
                 SM[i].pid = getpid();
-                SM[i].udp_sockfd = SOCK_INFO.sockfd;
+                SM[i].udp_sockfd = SOCK_INFO->sockfd;
                 memset(SM[i].ip_other, 0, sizeof(SM[i].ip_other));
                 SM[i].port_other = 0;   
                 memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
                 memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
-                
+                memset(SM[i].send_buffer_empty, 0, sizeof(SM[i].send_buffer_empty));
+                memset(SM[i].recv_buffer_empty, 0, sizeof(SM[i].recv_buffer_empty));
                 reset();
                 // signal_sem(&sem1);
                 return i;
@@ -73,22 +92,32 @@ int m_socket(int domain, int type, int protocol){
 
 int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest_port){
 
+    // get SM shared memory
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
     if(SM[sockid].udp_sockfd == -1){
         errno = EBADF;
         return -1;
     }
 
-    SOCK_INFO.sockfd = SM[sockid].udp_sockfd;
-    SOCK_INFO.port = source_port;
-    strcpy(SOCK_INFO.ip, source_ip);
+    // get sockinfo shared memory
+    key_t key = ftok(".", 'a');
+    int shmid = shmget(key, sizeof(sockinfo), 0777|IPC_CREAT);
+    // initialize the shared memory
+    sockinfo *SOCK_INFO = (sockinfo*)shmat(shmid, 0, 0);
 
+    SOCK_INFO->sockfd = SM[sockid].udp_sockfd;
+    SOCK_INFO->port = source_port;
+    strcpy(SOCK_INFO->ip, source_ip);
 
     signal_sem(&sem1);
 
     wait_sem(&sem2);
 
-    if(SOCK_INFO.sockfd == -1){
-        errno = SOCK_INFO.err;
+    if(SOCK_INFO->sockfd == -1){
+        errno = SOCK_INFO->err;
         reset();
         return -1;
     }
@@ -106,6 +135,11 @@ int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest
 
 ssize_t m_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len){
     
+    // get SM shared memory
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
     // check if the socket is valid
     if(SM[socket].udp_sockfd == -1){
         errno = EBADF;
@@ -126,9 +160,9 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
 
     int isspace = 0;
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
-        if(SM[socket].send_buffer_empty[i] == 0){
+        if(SM[socket].send_buffer_empty[i] == 1){
             isspace = 1;
-            SM[socket].send_buffer_empty[i] = 1;
+            SM[socket].send_buffer_empty[i] = 0;
             strcpy(SM[socket].send_buffer[i], message);
             return 0;   // if successful
         }
@@ -144,6 +178,12 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
 
 ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len){
     // check if the socket is valid
+
+    // get SM shared memory
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
     if(SM[socket].udp_sockfd == -1){
         errno = EBADF;
         return -1;
@@ -163,9 +203,9 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
 
     int ismsg = 0;
     for(int i = 0; i< MAX_WINDOW_SIZE; i++){
-        if(SM[socket].recv_buffer_empty[i] == 1){
+        if(SM[socket].recv_buffer_empty[i] == 0){
             ismsg = 1;
-            SM[socket].recv_buffer_empty[i] = 0;
+            SM[socket].recv_buffer_empty[i] = 1;
             strcpy(buffer, SM[socket].recv_buffer[i]);
             memset(SM[socket].recv_buffer[i], 0,sizeof(SM[socket].recv_buffer[i]));
             // Returning the length of the message received.
@@ -180,6 +220,12 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
 }
 
 int m_close(int socket){
+
+    // get SM shared memory
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
     close(SM[socket].udp_sockfd);
     SM[socket].free = 1;
     SM[socket].pid = 0;
@@ -188,9 +234,18 @@ int m_close(int socket){
     memset(SM[socket].ip_other, 0, sizeof(SM[socket].ip_other));
     memset(SM[socket].send_buffer, 0, sizeof(SM[socket].send_buffer));
     memset(SM[socket].recv_buffer, 0, sizeof(SM[socket].recv_buffer));
-    memset(SM[socket].send_buffer_empty, 0, sizeof(SM[socket].send_buffer_empty));  // if empty, 0 else 1
-    memset(SM[socket].recv_buffer_empty, 0, sizeof(SM[socket].recv_buffer_empty));
+    memset(SM[socket].send_buffer_empty, 1, sizeof(SM[socket].send_buffer_empty));  // if empty, 1 else 0
+    memset(SM[socket].recv_buffer_empty, 1, sizeof(SM[socket].recv_buffer_empty));
     memset(SM[socket].swnd.sequence_numbers, 0, sizeof(SM[socket].swnd.sequence_numbers));
     memset(SM[socket].rwnd.sequence_numbers, 0, sizeof(SM[socket].rwnd.sequence_numbers));
+    return 0;
+}
+
+int dropMessage(float prob){
+    srand(time(0)); 
+    float r = (float)rand()/(float)(RAND_MAX);
+    if(r < prob){
+        return 1;
+    }
     return 0;
 }
