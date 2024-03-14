@@ -113,7 +113,7 @@ void* receiver(void *arg){
         else{
             for(int i=0; i<N; i++){
                 // if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
-                printf("SM[%d].free = %d\n", i, SM[i].free);
+                
                 if(SM[i].free == 0){
                     // receive
                     printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
@@ -121,6 +121,7 @@ void* receiver(void *arg){
                     socklen_t len = sizeof(other_addr);
                     char buffer[MAXLINE];
                     int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
+                    
                     if(n == -1){
                         if(errno == EAGAIN || errno == EWOULDBLOCK){
                             continue;

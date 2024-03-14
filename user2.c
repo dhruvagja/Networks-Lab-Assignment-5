@@ -22,6 +22,11 @@ int main(){
 
     struct sockaddr_in dest_addr;
     socklen_t dest_len = sizeof(dest_addr);
-    int len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
+    int len = -1;
+
+    while(len < 0){
+        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
+        sleep(1);
+    }
     printf("buffer: %s\n", buffer);
 }
