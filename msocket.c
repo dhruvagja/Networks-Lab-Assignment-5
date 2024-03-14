@@ -178,11 +178,12 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     }
 
     int isspace = 0;
+    char *message_ = (char *)message;
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
         if(SM[socket].send_buffer_empty[i] == 1){
             isspace = 1;
             SM[socket].send_buffer_empty[i] = 0;
-            strcpy(SM[socket].send_buffer[i], message);
+            strcpy(SM[socket].send_buffer[i], message_);
             SM[socket].swnd.size++;
             return 0;   // if successful
         }
@@ -219,6 +220,8 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     // check if the source port and ip are same as the one in the SM
     if(strcmp(SM[socket].ip_other, src_ip) != 0 || SM[socket].port_other != src_port){
         // ENOTFOUND errno?
+
+        printf("Source port and ip not same %d, %s \n", src_port, src_ip);
         errno = EDESTADDRREQ;
         return -1;
     }
@@ -235,13 +238,16 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     //     }
     // }
 
+    // char *buffer_ = (char *)buffer;
+    // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", buffer_);
     if(SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] == 0){
         ismsg = 1;
         SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] = 1;
-        strcpy(buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
+        strcpy((char*)buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
         memset(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]], 0,sizeof(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]));
         // Returning the length of the message received.
-        return strlen(buffer);
+        printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", (char*)buffer);
+        return strlen((char*)buffer);
     }
 
     // char buffer = SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]];
