@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include "msocket.h"
+#include <time.h>
 
 // #define MAXLINE 1024
 // #define MAX_WINDOW_SIZE 5
@@ -101,6 +102,7 @@ void* receiver(void *arg){
                         // SM[i].rwnd.sequence_numbers[SM[i].rwnd.size] = SM[i].rwnd.size;
                         // SM[i].rwnd.size++;
 
+                        /* Remove MTP header */
                         int seq_no = -1;
                         for(int j=0; j<MAX_WINDOW_SIZE; j++){
                             if(SM[i].recv_buffer_empty[j] == 1){
@@ -142,10 +144,36 @@ void* sender(void *arg){
     key_t key1 = ftok(".", 'b');
     int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
     SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
-
+    // Add MTP header to the message
     while(1){
 
-    }
+
+        for(int i = 0; i< N; i++){
+            if(SM[i].free == 0){
+                for(int j = 0; j<2*MAX_WINDOW_SIZE; j++){
+                    if(SM[i].send_buffer_empty[j] == 0 && SM[i].sent_unack[j] == 0){
+                        // send the message
+                        struct sockaddr_in other_addr;
+                        other_addr.sin_family = AF_INET;
+                        other_addr.sin_port = htons(SM[i].port_other);
+                        other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
+                        int len = sizeof(other_addr);
+                        sendto(SM[i].udp_sockfd, SM[i].send_buffer[j], strlen(SM[i].send_buffer[j]), MSG_DONTWAIT, (struct sockaddr*)&other_addr, len);
+                        
+                        SM[i].sent_unack[j] = 1;
+
+                        char buff[50];
+                        recvfrom(SM[i].udp_sockfd, buff, 50, 0 , (struct sockaddr*)&other_addr, &len);
+
+
+
+                    }
+                }
+            }
+        }
+
+        
+    }   
 }
 
 void* garbage_collector(void *arg){
@@ -159,7 +187,7 @@ void* garbage_collector(void *arg){
             if(SM[i].free == 0){
                 int status;
                 // flag hata dena
-                int ret = waitpid(SM[i].pid, &status, WNOHANG);
+                int ret = waitpid(SM[i].pid, &status, 0);
                 if(ret == SM[i].pid){
                     // process has been killed
                     close(SM[i].udp_sockfd);
@@ -198,6 +226,7 @@ int main(){
         memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
         memset(SM[i].send_buffer_empty, 1, sizeof(SM[i].send_buffer_empty));  // if empty, 1 else 0
         memset(SM[i].recv_buffer_empty, 1, sizeof(SM[i].recv_buffer_empty));
+        memset(SM[i].sent_unack, 0, sizeof(SM[i].sent_unack));
         // memset(SM[i].swnd.sequence_numbers, 0, sizeof(SM[i].swnd.sequence_numbers));
         // memset(SM[i].rwnd.sequence_numbers, 0, sizeof(SM[i].rwnd.sequence_numbers));
         for(int j=0; j<MAX_WINDOW_SIZE*2; j++){
@@ -219,7 +248,8 @@ int main(){
     memset(SOCK_INFO->ip, 0, sizeof(SOCK_INFO->ip));
 
     pthread_t R, S, G;
-    init_sem();
+    int sem1, sem2;
+    init_sem(&sem1, &sem2);
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);

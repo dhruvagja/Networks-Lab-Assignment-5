@@ -1,3 +1,6 @@
+
+
+
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <unistd.h> 
@@ -9,6 +12,8 @@
 #include <errno.h>
 
 #include "msocket.h"
+
+int sem1, sem2;
 
 void reset(){
     // get sockinfo shared memory
@@ -23,9 +28,9 @@ void reset(){
     memset(SOCK_INFO->ip, 0, sizeof(SOCK_INFO->ip));
 }
 
-void init_sem(){
-    sem1 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
-    sem2 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
+void init_sem(int * sem1, int * sem2){
+    *sem1 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
+    *sem2 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
     semctl(sem1, 0, SETVAL, 0);
     semctl(sem2, 0, SETVAL, 0);
 
@@ -222,7 +227,7 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
         return strlen(buffer);
     }
 
-    char buffer = SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]];
+    // char buffer = SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]];
 
     if(!ismsg){
         errno = ENOBUFS;
@@ -249,6 +254,7 @@ int m_close(int socket){
     memset(SM[socket].recv_buffer_empty, 1, sizeof(SM[socket].recv_buffer_empty));
     memset(SM[socket].swnd.sequence_numbers, 0, sizeof(SM[socket].swnd.sequence_numbers));
     memset(SM[socket].rwnd.sequence_numbers, 0, sizeof(SM[socket].rwnd.sequence_numbers));
+    memset(SM[socket].sent_unack, 0, sizeof(SM[socket].sent_unack));
     return 0;
 }
 
@@ -260,3 +266,5 @@ int dropMessage(float prob){
     }
     return 0;
 }
+
+

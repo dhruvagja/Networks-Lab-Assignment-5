@@ -1,3 +1,6 @@
+#ifndef M_SOCKET_H
+#define M_SOCKET_H
+
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <unistd.h> 
@@ -8,7 +11,7 @@
 #include <netinet/in.h> 
 #include <errno.h>
 #include <sys/sem.h>
-
+#include <time.h>
 #define T 5
 #define p 0.05
 #define SOCK_MTP 0
@@ -33,13 +36,14 @@ typedef struct {
 }receiver_window;
 
 typedef struct {
-    int free=1;
+    int free;
     int pid;
     int udp_sockfd;
     char *ip_other;
     int port_other;
     char send_buffer[MAX_WINDOW_SIZE*2][MAXLINE];
     int send_buffer_empty[MAX_WINDOW_SIZE*2];
+    int sent_unack[MAX_WINDOW_SIZE*2];
     char recv_buffer[MAX_WINDOW_SIZE][MAXLINE];
     int recv_buffer_empty[MAX_WINDOW_SIZE];
     sender_window swnd;
@@ -60,7 +64,7 @@ typedef struct {
 void reset();
 
 // create two semaphores sem1 and sem2
-int sem1, sem2;
+
 
 // semctl(sem1, 0, SETVAL, 0);
 // semctl(sem2, 0, SETVAL, 1);
@@ -74,3 +78,6 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
 ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
 int m_close(int socket);
 int dropMessage(float prob);
+
+
+#endif M_SOCKET_H
