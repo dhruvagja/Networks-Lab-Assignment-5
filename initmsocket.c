@@ -232,9 +232,16 @@ int main(){
         memset(SM[i].ip_other, 0, sizeof(SM[i].ip_other));
         memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
         memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
-        memset(SM[i].send_buffer_empty, 1, sizeof(SM[i].send_buffer_empty));  // if empty, 1 else 0
-        memset(SM[i].recv_buffer_empty, 1, sizeof(SM[i].recv_buffer_empty));
-        memset(SM[i].sent_unack, 0, sizeof(SM[i].sent_unack));
+        // memset(SM[i].send_buffer_empty, 1, sizeof(SM[i].send_buffer_empty));  // if empty, 1 else 0
+        // memset(SM[i].recv_buffer_empty, 1, sizeof(SM[i].recv_buffer_empty));
+        for(int j = 0; j<MAX_WINDOW_SIZE*2; j++){
+            SM[i].send_buffer_empty[j] = 1;
+            SM[i].sent_unack[j] = 0;
+        }
+        for(int j = 0; j<MAX_WINDOW_SIZE; j++){
+            SM[i].recv_buffer_empty[j] = 1;
+        }
+        // memset(SM[i].sent_unack, 0, sizeof(SM[i].sent_unack));
         // memset(SM[i].swnd.sequence_numbers, 0, sizeof(SM[i].swnd.sequence_numbers));
         // memset(SM[i].rwnd.sequence_numbers, 0, sizeof(SM[i].rwnd.sequence_numbers));
         for(int j=0; j<MAX_WINDOW_SIZE*2; j++){
@@ -288,13 +295,19 @@ int main(){
 
     // create sockets or binds as per sockfd value
     while(1){
+        printf("Waiting for signal on sem1 : %d\n", sem1);
         wait_sem(sem1);
+        printf("Signal received on sem1\n");
         int sockfd = SOCK_INFO->sockfd;
         int port = SOCK_INFO->port;
         char *ip = SOCK_INFO->ip;
         // socket creation call
-        if(sockfd == 0 && port == 0 && ip[0] == '\0'){
-            SOCK_INFO->sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        // if(sockfd == 0 && port == 0 && ip[0] == '\0'){
+        printf("Init : sockfd = %d, port = %d, ip = %s\n", sockfd, port, ip);
+        if(sockfd == 0 && port == 0){
+            printf("Init : All fields are empty\n");
+            int temp_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+            SOCK_INFO->sockfd = temp_sockfd;
             if(SOCK_INFO->sockfd == -1){
                 SOCK_INFO->err = errno;
                 // return -1;

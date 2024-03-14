@@ -10,14 +10,14 @@ int main(){
     int sockfd;
     char buffer[MAXLINE];
     char *hello = "Hello from client";
-
+    printf("Message : %s\n", hello);
     char IP[16] = "127.0.0.1";
     int PORT = 8080;
     char dest_IP[16] = "127.0.0.1";
     int dest_PORT = 8081;
 
     sockfd = m_socket(AF_INET, SOCK_MTP, 0);
-
+    printf("Socket : %d\n", sockfd);
     int bind_status = m_bind(sockfd, IP, PORT, dest_IP, dest_PORT);
 
     struct sockaddr_in dest_addr;
