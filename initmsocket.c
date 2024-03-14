@@ -55,28 +55,28 @@ void* receiver(void *arg){
 
     int latest_seq_no = -1;
 
-    while(1){
-        for(int i=0; i<N; i++){
-            if(SM[i].free == 0){
-                // FD_SET(SM[i].udp_sockfd, &readfds);
-                // printf("setting fd : %d\n", SM[i].udp_sockfd);
+    // while(1){
+    //     for(int i=0; i<N; i++){
+    //         if(SM[i].free == 0){
+    //             // FD_SET(SM[i].udp_sockfd, &readfds);
+    //             // printf("setting fd : %d\n", SM[i].udp_sockfd);
 
-                struct sockaddr_in other_addr;
-                socklen_t len = sizeof(other_addr);
-                char buffer[MAXLINE];
-                printf("Waiting for recv on socket : %d\n", SM[i].udp_sockfd);
-                int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
-                if(n == -1){
-                    perror("recvfrom() failed");
-                }
-                else{
-                    printf("recv: %s\n", buffer);
-                }
-            }
-        }
-    }
+    //             struct sockaddr_in other_addr;
+    //             socklen_t len = sizeof(other_addr);
+    //             char buffer[MAXLINE];
+    //             printf("Waiting for recv on socket : %d\n", SM[i].udp_sockfd);
+    //             int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
+    //             if(n == -1){
+    //                 perror("recvfrom() failed");
+    //             }
+    //             else{
+    //                 printf("recv: %s\n", buffer);
+    //             }
+    //         }
+    //     }
+    // }
 
-    /*
+    
     while(1){
         
         FD_ZERO(&readfds);
@@ -100,6 +100,7 @@ void* receiver(void *arg){
 
         int ret = select(max_fd+1, &readfds, NULL, NULL, &timeout);
         if(ret == 0){
+            perror("select() timeout");
             if(nospace == 1){
                 // char ACK[20];
                 // sprintf(ACK, "ACK %d", SM[i].rwnd.sequence_numbers[0]);
@@ -112,7 +113,8 @@ void* receiver(void *arg){
         else{
             for(int i=0; i<N; i++){
                 // if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
-                if(FD_ISSET(SM[i].udp_sockfd, &readfds)){
+                printf("SM[%d].free = %d\n", i, SM[i].free);
+                if(SM[i].free == 0){
                     // receive
                     printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
                     struct sockaddr_in other_addr;
@@ -174,7 +176,7 @@ void* receiver(void *arg){
 
     }
 
-    */
+    
 }
 
 void* sender(void *arg){
