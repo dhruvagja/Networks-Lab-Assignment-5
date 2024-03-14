@@ -11,7 +11,6 @@
 #include "msocket.h"
 
 void reset(){
-
     // get sockinfo shared memory
     key_t key = ftok(".", 'a');
     int shmid = shmget(key, sizeof(sockinfo), 0777|IPC_CREAT);
@@ -164,6 +163,7 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
             isspace = 1;
             SM[socket].send_buffer_empty[i] = 0;
             strcpy(SM[socket].send_buffer[i], message);
+            SM[socket].swnd.size++;
             return 0;   // if successful
         }
     }
@@ -202,16 +202,27 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     }
 
     int ismsg = 0;
-    for(int i = 0; i< MAX_WINDOW_SIZE; i++){
-        if(SM[socket].recv_buffer_empty[i] == 0){
-            ismsg = 1;
-            SM[socket].recv_buffer_empty[i] = 1;
-            strcpy(buffer, SM[socket].recv_buffer[i]);
-            memset(SM[socket].recv_buffer[i], 0,sizeof(SM[socket].recv_buffer[i]));
-            // Returning the length of the message received.
-            return strlen(buffer);
-        }
+    // for(int i = 0; i< MAX_WINDOW_SIZE; i++){
+    //     if(SM[socket].recv_buffer_empty[i] == 0){
+    //         ismsg = 1;
+    //         SM[socket].recv_buffer_empty[i] = 1;
+    //         strcpy(buffer, SM[socket].recv_buffer[i]);
+    //         memset(SM[socket].recv_buffer[i], 0,sizeof(SM[socket].recv_buffer[i]));
+    //         // Returning the length of the message received.
+    //         return strlen(buffer);
+    //     }
+    // }
+
+    if(SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] == 0){
+        ismsg = 1;
+        SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] = 1;
+        strcpy(buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
+        memset(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]], 0,sizeof(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]));
+        // Returning the length of the message received.
+        return strlen(buffer);
     }
+
+    char buffer = SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]];
 
     if(!ismsg){
         errno = ENOBUFS;
