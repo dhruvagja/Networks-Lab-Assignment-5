@@ -9,11 +9,17 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
 #include <netinet/in.h> 
+#include <sys/shm.h>
+#include <sys/sem.h>
 #include <errno.h>
 
 #include "msocket.h"
 
 int sem1, sem2;
+struct sembuf pop, vop;
+
+#define wait_sem(s) semop(s, &pop, 1)    
+#define signal_sem(s) semop(s, &vop, 1)  
 
 void reset(){
     // get sockinfo shared memory
@@ -28,11 +34,13 @@ void reset(){
     memset(SOCK_INFO->ip, 0, sizeof(SOCK_INFO->ip));
 }
 
-void init_sem(int * sem1, int * sem2){
-    *sem1 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
-    *sem2 = semget(IPC_PRIVATE, 1, 0777|IPC_CREAT);
-    semctl(sem1, 0, SETVAL, 0);
-    semctl(sem2, 0, SETVAL, 0);
+void init_sem(){
+    struct sembuf pop, vop;
+    key_t key = ftok(".", 'c');
+    key_t key1 = ftok(".", 'd');
+
+    sem1 = semget(key, 1, 0777|IPC_CREAT);
+    sem2 = semget(key1, 1, 0777|IPC_CREAT);
 
     pop.sem_num = vop.sem_num = 0;
 	pop.sem_flg = vop.sem_flg = 0;
@@ -63,8 +71,10 @@ int m_socket(int domain, int type, int protocol){
             // return i;
 
             free_entry = 1;
-            signal_sem(&sem1);
-            wait_sem(&sem2);
+            init_sem();
+
+            signal_sem(sem1);
+            wait_sem(sem2);
 
             if(SOCK_INFO->sockfd == -1){
                 errno = SOCK_INFO->err;
@@ -92,6 +102,8 @@ int m_socket(int domain, int type, int protocol){
         errno = ENOBUFS;
         return -1;
     }
+
+    return -1;
 }
 
 int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest_port){
@@ -116,9 +128,10 @@ int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest
     SOCK_INFO->port = source_port;
     strcpy(SOCK_INFO->ip, source_ip);
 
-    signal_sem(&sem1);
+    init_sem();
 
-    wait_sem(&sem2);
+    signal_sem(sem1);
+    wait_sem(sem2);
 
     if(SOCK_INFO->sockfd == -1){
         errno = SOCK_INFO->err;
@@ -143,6 +156,8 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     key_t key1 = ftok(".", 'b');
     int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
     SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
+    printf("msocket.c | m_sendto function | before checking valid sockid: send mesg: %s\n", (char*)message);
 
     // check if the socket is valid
     if(SM[socket].udp_sockfd == -1){
@@ -178,6 +193,8 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
         errno = ENOBUFS;
         return -1;
     }
+
+    return -1;
     
 }
 
@@ -233,6 +250,8 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
         errno = ENOBUFS;
         return -1;
     }
+
+    return -1;
 }
 
 int m_close(int socket){

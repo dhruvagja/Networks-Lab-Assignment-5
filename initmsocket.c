@@ -11,6 +11,9 @@
 #include <pthread.h>
 #include "msocket.h"
 #include <time.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+
 
 // #define MAXLINE 1024
 // #define MAX_WINDOW_SIZE 5
@@ -38,6 +41,9 @@
 //     receiver_window rwnd;
 // };
 
+
+#define wait_sem(s) semop(s, &pop, 1)    
+#define signal_sem(s) semop(s, &vop, 1)  
 
 void* receiver(void *arg){
     fd_set readfds;
@@ -85,7 +91,7 @@ void* receiver(void *arg){
                 if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
                     // receive
                     struct sockaddr_in other_addr;
-                    int len = sizeof(other_addr);
+                    socklen_t len = sizeof(other_addr);
                     char buffer[MAXLINE];
                     int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, MSG_DONTWAIT, (struct sockaddr*)&other_addr, &len);
                     if(n == -1){
@@ -102,8 +108,13 @@ void* receiver(void *arg){
                         // SM[i].rwnd.sequence_numbers[SM[i].rwnd.size] = SM[i].rwnd.size;
                         // SM[i].rwnd.size++;
 
-                        /* Remove MTP header */
+                        /* Remove MTP header code left*/
+                        /* code goes here */ 
+                    
                         int seq_no = -1;
+                        // printing received message
+                        printf("recv: %s\n", buffer);
+
                         for(int j=0; j<MAX_WINDOW_SIZE; j++){
                             if(SM[i].recv_buffer_empty[j] == 1){
                                 nospace = 0;
@@ -157,16 +168,13 @@ void* sender(void *arg){
                         other_addr.sin_family = AF_INET;
                         other_addr.sin_port = htons(SM[i].port_other);
                         other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
-                        int len = sizeof(other_addr);
+                        socklen_t len = sizeof(other_addr);
                         sendto(SM[i].udp_sockfd, SM[i].send_buffer[j], strlen(SM[i].send_buffer[j]), MSG_DONTWAIT, (struct sockaddr*)&other_addr, len);
-                        
+                        printf("sendto: %s\n", SM[i].send_buffer[j]);
                         SM[i].sent_unack[j] = 1;
 
                         char buff[50];
                         recvfrom(SM[i].udp_sockfd, buff, 50, 0 , (struct sockaddr*)&other_addr, &len);
-
-
-
                     }
                 }
             }
@@ -248,8 +256,8 @@ int main(){
     memset(SOCK_INFO->ip, 0, sizeof(SOCK_INFO->ip));
 
     pthread_t R, S, G;
-    int sem1, sem2;
-    init_sem(&sem1, &sem2);
+    // int sem1, sem2;
+    // init_sem(&sem1, &sem2);
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -264,20 +272,34 @@ int main(){
     // // initialize the shared memory
     // sockinfo *SOCK_INFO = (sockinfo*)shmat(shmid, 0, 0);
 
+    struct sembuf pop, vop;
+
+    key_t key2 = ftok(".", 'c');
+    int sem1 = semget(key2, 1, 0777|IPC_CREAT);
+    semctl(sem1, 0, SETVAL, 0);
+
+    key_t key3 = ftok(".", 'd');
+    int sem2 = semget(key3, 1, 0777|IPC_CREAT);
+    semctl(sem2, 0, SETVAL, 0);
+
+    pop.sem_num = vop.sem_num = 0;
+    pop.sem_flg = vop.sem_flg = 0;
+    pop.sem_op = -1 ; vop.sem_op = 1;
+
     // create sockets or binds as per sockfd value
     while(1){
-        wait_sem(&sem1);
+        wait_sem(sem1);
         int sockfd = SOCK_INFO->sockfd;
         int port = SOCK_INFO->port;
         char *ip = SOCK_INFO->ip;
         // socket creation call
-        if(sockfd == 0 && port == 0 && strlen(ip) == 0){
+        if(sockfd == 0 && port == 0 && ip[0] == '\0'){
             SOCK_INFO->sockfd = socket(AF_INET, SOCK_DGRAM, 0);
             if(SOCK_INFO->sockfd == -1){
-                SOCK_INFO->err = strerror(errno);
+                SOCK_INFO->err = errno;
                 // return -1;
             }
-            signal_sem(&sem2);
+            signal_sem(sem2);
         }
 
         // bind call
@@ -287,12 +309,12 @@ int main(){
             my_addr.sin_port = htons(SOCK_INFO->port);
             my_addr.sin_addr.s_addr = inet_addr(SOCK_INFO->ip);
             if(bind(SOCK_INFO->sockfd, (struct sockaddr*)&my_addr, sizeof(my_addr)) == -1){
-                SOCK_INFO->err = strerror(errno);
+                SOCK_INFO->err = errno;
                 SOCK_INFO->sockfd = -1;
-                signal_sem(&sem2);
+                // signal_sem(&sem2);
                 // return -1;
             }
-            signal_sem(&sem2);
+            signal_sem(sem2);
             // return -1;
         }
     }

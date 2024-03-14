@@ -1,5 +1,5 @@
-#ifndef M_SOCKET_H
-#define M_SOCKET_H
+#ifndef MSOCKET_H
+#define MSOCKET_H
 
 #include <stdio.h> 
 #include <stdlib.h> 
@@ -11,6 +11,7 @@
 #include <netinet/in.h> 
 #include <errno.h>
 #include <sys/sem.h>
+#include <sys/shm.h>
 #include <time.h>
 #define T 5
 #define p 0.05
@@ -20,10 +21,10 @@
 #define MAX_WINDOW_SIZE 5
 #define N 25
 
-#define wait_sem(s) semop(s, &pop, 1)    
-#define signal_sem(s) semop(s, &vop, 1)  
+// #define wait_sem(s) semop(s, &pop, 1)    
+// #define signal_sem(s) semop(s, &vop, 1)  
 
-struct sembuf pop, vop;
+// struct sembuf pop, vop;
 
 typedef struct {
     int size;
@@ -39,7 +40,7 @@ typedef struct {
     int free;
     int pid;
     int udp_sockfd;
-    char *ip_other;
+    char ip_other[16];
     int port_other;
     char send_buffer[MAX_WINDOW_SIZE*2][MAXLINE];
     int send_buffer_empty[MAX_WINDOW_SIZE*2];
@@ -69,7 +70,7 @@ void reset();
 // semctl(sem1, 0, SETVAL, 0);
 // semctl(sem2, 0, SETVAL, 1);
 
-void init_sem();
+// void init_sem();
 
 int m_socket(int domain, int type, int protocol);
 // taking ip as string rn, can take differently
@@ -80,4 +81,4 @@ int m_close(int socket);
 int dropMessage(float prob);
 
 
-#endif M_SOCKET_H
+#endif 

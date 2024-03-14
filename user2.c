@@ -21,7 +21,7 @@ int main(){
     int bind_status = m_bind(sockfd, IP, PORT, dest_IP, dest_PORT);
 
     struct sockaddr_in dest_addr;
-    int dest_len = sizeof(dest_addr);
+    socklen_t dest_len = sizeof(dest_addr);
     int len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
     printf("buffer: %s\n", buffer);
 }
