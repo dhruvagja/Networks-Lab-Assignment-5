@@ -56,6 +56,28 @@ void* receiver(void *arg){
     int latest_seq_no = -1;
 
     while(1){
+        for(int i=0; i<N; i++){
+            if(SM[i].free == 0){
+                // FD_SET(SM[i].udp_sockfd, &readfds);
+                // printf("setting fd : %d\n", SM[i].udp_sockfd);
+
+                struct sockaddr_in other_addr;
+                socklen_t len = sizeof(other_addr);
+                char buffer[MAXLINE];
+                printf("Waiting for recv on socket : %d\n", SM[i].udp_sockfd);
+                int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
+                if(n == -1){
+                    perror("recvfrom() failed");
+                }
+                else{
+                    printf("recv: %s\n", buffer);
+                }
+            }
+        }
+    }
+
+    /*
+    while(1){
         
         FD_ZERO(&readfds);
         int max_fd = 0;
@@ -63,6 +85,7 @@ void* receiver(void *arg){
         for(int i=0; i<N; i++){
             if(SM[i].free == 0){
                 FD_SET(SM[i].udp_sockfd, &readfds);
+                printf("setting fd : %d\n", SM[i].udp_sockfd);
                 if(SM[i].udp_sockfd > max_fd){
                     max_fd = SM[i].udp_sockfd;
                 }
@@ -88,12 +111,14 @@ void* receiver(void *arg){
         }
         else{
             for(int i=0; i<N; i++){
-                if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
+                // if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
+                if(FD_ISSET(SM[i].udp_sockfd, &readfds)){
                     // receive
+                    printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
                     struct sockaddr_in other_addr;
                     socklen_t len = sizeof(other_addr);
                     char buffer[MAXLINE];
-                    int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, MSG_DONTWAIT, (struct sockaddr*)&other_addr, &len);
+                    int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
                     if(n == -1){
                         if(errno == EAGAIN || errno == EWOULDBLOCK){
                             continue;
@@ -108,8 +133,8 @@ void* receiver(void *arg){
                         // SM[i].rwnd.sequence_numbers[SM[i].rwnd.size] = SM[i].rwnd.size;
                         // SM[i].rwnd.size++;
 
-                        /* Remove MTP header code left*/
-                        /* code goes here */ 
+                        // Remove MTP header code left
+                        // code goes here  
                     
                         int seq_no = -1;
                         // printing received message
@@ -148,6 +173,8 @@ void* receiver(void *arg){
         }
 
     }
+
+    */
 }
 
 void* sender(void *arg){
@@ -168,8 +195,9 @@ void* sender(void *arg){
                         other_addr.sin_family = AF_INET;
                         other_addr.sin_port = htons(SM[i].port_other);
                         other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
+                        printf("Sending to : %s, %d\n", SM[i].ip_other, SM[i].port_other);
                         socklen_t len = sizeof(other_addr);
-                        sendto(SM[i].udp_sockfd, SM[i].send_buffer[j], strlen(SM[i].send_buffer[j]), MSG_DONTWAIT, (struct sockaddr*)&other_addr, len);
+                        sendto(SM[i].udp_sockfd, SM[i].send_buffer[j], strlen(SM[i].send_buffer[j]), 0, (struct sockaddr*)&other_addr, len);
                         printf("sendto: %s\n", SM[i].send_buffer[j]);
                         SM[i].sent_unack[j] = 1;
 
@@ -269,8 +297,8 @@ int main(){
     pthread_attr_t attr;
     pthread_attr_init(&attr);
 
-    pthread_create(&R, &attr, receiver, NULL);
     pthread_create(&S, &attr, sender, NULL);
+    pthread_create(&R, &attr, receiver, NULL);
     pthread_create(&G, &attr, garbage_collector, NULL);
 
     // // create a shared memory structure sockinfo

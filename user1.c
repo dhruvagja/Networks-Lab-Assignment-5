@@ -19,7 +19,7 @@ int main(){
     sockfd = m_socket(AF_INET, SOCK_MTP, 0);
     printf("Socket : %d\n", sockfd);
     int bind_status = m_bind(sockfd, IP, PORT, dest_IP, dest_PORT);
-
+    printf("Bind status : %d\n", bind_status);
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(dest_PORT);
