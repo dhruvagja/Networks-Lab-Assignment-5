@@ -4,8 +4,6 @@
 #include <stdlib.h>
 
 
-
-
 int main(){
     int sockfd;
     char buffer[MAXLINE];
@@ -17,6 +15,7 @@ int main(){
     int dest_PORT = 8080;
 
     sockfd = m_socket(AF_INET, SOCK_MTP, 0);
+    printf("socket = %d\n", sockfd);
 
     int bind_status = m_bind(sockfd, IP, PORT, dest_IP, dest_PORT);
 
@@ -28,5 +27,5 @@ int main(){
         len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
         sleep(1);
     }
-    printf("buffer: %s\n", buffer);
+    printf("received from user1: %s\n", buffer);
 }

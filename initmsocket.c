@@ -54,28 +54,6 @@ void* receiver(void *arg){
     SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
 
     int latest_seq_no = -1;
-
-    // while(1){
-    //     for(int i=0; i<N; i++){
-    //         if(SM[i].free == 0){
-    //             // FD_SET(SM[i].udp_sockfd, &readfds);
-    //             // printf("setting fd : %d\n", SM[i].udp_sockfd);
-
-    //             struct sockaddr_in other_addr;
-    //             socklen_t len = sizeof(other_addr);
-    //             char buffer[MAXLINE];
-    //             printf("Waiting for recv on socket : %d\n", SM[i].udp_sockfd);
-    //             int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
-    //             if(n == -1){
-    //                 perror("recvfrom() failed");
-    //             }
-    //             else{
-    //                 printf("recv: %s\n", buffer);
-    //             }
-    //         }
-    //     }
-    // }
-
     
     while(1){
         
@@ -85,7 +63,7 @@ void* receiver(void *arg){
         for(int i=0; i<N; i++){
             if(SM[i].free == 0){
                 FD_SET(SM[i].udp_sockfd, &readfds);
-                printf("setting fd : %d\n", SM[i].udp_sockfd);
+                // printf("setting fd : %d\n", SM[i].udp_sockfd);
                 if(SM[i].udp_sockfd > max_fd){
                     max_fd = SM[i].udp_sockfd;
                 }
@@ -100,23 +78,19 @@ void* receiver(void *arg){
 
         int ret = select(max_fd+1, &readfds, NULL, NULL, &timeout);
         if(ret == 0){
-            perror("select() timeout");
+            // perror("select() timeout");
             if(nospace == 1){
-                // char ACK[20];
-                // sprintf(ACK, "ACK %d", SM[i].rwnd.sequence_numbers[0]);
-
-                // send latest seq no ACK, with updated rwnd size
-
+                /*  */
             }
             continue;
         }
         else{
             for(int i=0; i<N; i++){
-                // if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
+                if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
                 
-                if(SM[i].free == 0){
+                // if(SM[i].free == 0){
                     // receive
-                    printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
+                    // printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
                     struct sockaddr_in other_addr;
                     socklen_t len = sizeof(other_addr);
                     char buffer[MAXLINE];
@@ -141,7 +115,7 @@ void* receiver(void *arg){
                     
                         int seq_no = -1;
                         // printing received message
-                        printf("recv: %s\n", buffer);
+                        // printf("recv: %s\n", buffer);
 
                         for(int j=0; j<MAX_WINDOW_SIZE; j++){
                             if(SM[i].recv_buffer_empty[j] == 1){
@@ -198,10 +172,10 @@ void* sender(void *arg){
                         other_addr.sin_family = AF_INET;
                         other_addr.sin_port = htons(SM[i].port_other);
                         other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
-                        printf("Sending to : %s, %d\n", SM[i].ip_other, SM[i].port_other);
+                        // printf("Sending to : %s, %d\n", SM[i].ip_other, SM[i].port_other);
                         socklen_t len = sizeof(other_addr);
                         sendto(SM[i].udp_sockfd, SM[i].send_buffer[j], strlen(SM[i].send_buffer[j]), 0, (struct sockaddr*)&other_addr, len);
-                        printf("sendto: %s\n", SM[i].send_buffer[j]);
+                        // printf("sendto: %s\n", SM[i].send_buffer[j]);
                         SM[i].sent_unack[j] = 1;
 
                         char buff[50];
@@ -227,8 +201,11 @@ void* garbage_collector(void *arg){
                 int status;
                 // flag hata dena
                 int ret = waitpid(SM[i].pid, &status, 0);
+                // printf("ret = %d, strerror(errno) = %s\n", ret, strerror(errno));
+                
                 if(ret == SM[i].pid){
                     // process has been killed
+                    printf("closing sockfd : %d\n", SM[i].udp_sockfd);  
                     close(SM[i].udp_sockfd);
                     SM[i].free = 1;
                     SM[i].pid = 0;
@@ -326,17 +303,17 @@ int main(){
 
     // create sockets or binds as per sockfd value
     while(1){
-        printf("Waiting for signal on sem1 : %d\n", sem1);
+        // printf("Waiting for signal on sem1 : %d\n", sem1);
         wait_sem(sem1);
-        printf("Signal received on sem1\n");
+        // printf("Signal received on sem1\n");
         int sockfd = SOCK_INFO->sockfd;
         int port = SOCK_INFO->port;
         char *ip = SOCK_INFO->ip;
         // socket creation call
         // if(sockfd == 0 && port == 0 && ip[0] == '\0'){
-        printf("Init : sockfd = %d, port = %d, ip = %s\n", sockfd, port, ip);
+        // printf("Init : sockfd = %d, port = %d, ip = %s\n", sockfd, port, ip);
         if(sockfd == 0 && port == 0){
-            printf("Init : All fields are empty\n");
+            // printf("Init : All fields are empty\n");
             int temp_sockfd = socket(AF_INET, SOCK_DGRAM, 0);
             SOCK_INFO->sockfd = temp_sockfd;
             if(SOCK_INFO->sockfd == -1){

@@ -69,7 +69,7 @@ int m_socket(int domain, int type, int protocol){
 
             free_entry = 1;
             init_sem();
-            printf("signaling sem1 = %d\n", sem1);
+            // printf("signaling sem1 = %d\n", sem1);
             signal_sem(sem1);
             wait_sem(sem2);
 
@@ -79,11 +79,11 @@ int m_socket(int domain, int type, int protocol){
             }
             else{
 
-                printf("Waiting done in m_socket\n UDP socket : %d\n", SOCK_INFO->sockfd);
+                // printf("Waiting done in m_socket\n UDP socket : %d\n", SOCK_INFO->sockfd);
                 SM[i].free = 0;
                 SM[i].pid = getpid();
                 SM[i].udp_sockfd = SOCK_INFO->sockfd;
-                printf("UDP socket : %d\n", SM[i].udp_sockfd);
+                // printf("UDP socket : %d\n", SM[i].udp_sockfd);
                 // memset(SM[i].ip_other, 0, sizeof(SM[i].ip_other));
                 SM[i].port_other = 0;   
                 // memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
@@ -92,7 +92,7 @@ int m_socket(int domain, int type, int protocol){
                 // memset(SM[i].recv_buffer_empty, 0, sizeof(SM[i].recv_buffer_empty));
                 reset();
                 // signal_sem(&sem1);
-                printf("Returning from m_socket, MTP socket : %d\n", i);
+                // printf("Returning from m_socket, MTP socket : %d\n", i);
                 return i;
             }
         }
@@ -158,8 +158,8 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
     SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
 
-    printf("msocket.c | m_sendto function | before checking valid sockid: send mesg: %s\n", (char*)message);
-    printf("destination IP : %s\n", inet_ntoa(((struct sockaddr_in *)dest_addr)->sin_addr));
+    // printf("msocket.c | m_sendto function | before checking valid sockid: send mesg: %s\n", (char*)message);
+    // printf("destination IP : %s\n", inet_ntoa(((struct sockaddr_in *)dest_addr)->sin_addr));
     // check if the socket is valid
     if(SM[socket].udp_sockfd == -1){
         errno = EBADF;
@@ -181,14 +181,14 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     int isspace = 0;
     char *message_ = (char *)message;
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
-        printf("Using %d MTP socket\n", socket);
-        printf("SM[socket].send_buffer_empty[i] : %d, SM[socket].swnd.sequence[j] = %d \n", SM[socket].send_buffer_empty[i], SM[socket].swnd.sequence_numbers[i]);
-        printf("SM[i].free : %d\n", SM[i].free);
+        // printf("Using %d MTP socket\n", socket);
+        // printf("SM[socket].send_buffer_empty[i] : %d, SM[socket].swnd.sequence[j] = %d \n", SM[socket].send_buffer_empty[i], SM[socket].swnd.sequence_numbers[i]);
+        // printf("SM[i].free : %d\n", SM[i].free);
         if(SM[socket].send_buffer_empty[i] == 1){   
             isspace = 1;
             SM[socket].send_buffer_empty[i] = 0;
             strcpy(SM[socket].send_buffer[i], message_);
-            printf("Typecased message: %s\n", SM[socket].send_buffer[i]);
+            // printf("Typecasted message: %s\n", SM[socket].send_buffer[i]);
             SM[socket].swnd.size++;
             return 0;   // if successful
         }
@@ -251,11 +251,9 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
         strcpy((char*)buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
         memset(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]], 0,sizeof(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]));
         // Returning the length of the message received.
-        printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", (char*)buffer);
+        // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", (char*)buffer);
         return strlen((char*)buffer);
     }
-
-    // char buffer = SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]];
 
     if(!ismsg){
         errno = ENOBUFS;
