@@ -10,9 +10,9 @@ int main(){
     char *hello = "Hello from client";
 
     char IP[16] = "127.0.0.1";
-    int PORT = 20001;
+    int PORT = 8081;
     char dest_IP[16] = "127.0.0.1";
-    int dest_PORT = 20000;
+    int dest_PORT = 8080;
 
     sockfd = m_socket(AF_INET, SOCK_MTP, 0);
     printf("socket = %d\n", sockfd);

@@ -4,7 +4,7 @@ lib: msocket.o
 msocket.o: msocket.c msocket.h
 	gcc -c msocket.c
 
-initmsocket: initmsocket.c msocket.h
+initmsocket: lib initmsocket.c msocket.h
 	gcc initmsocket.c -o initmsocket -L. -lmsocket
 
 user1: user1.c msocket.o

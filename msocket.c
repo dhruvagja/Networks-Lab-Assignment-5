@@ -136,6 +136,7 @@ int m_bind(int sockid, char *source_ip, int source_port, char *dest_ip, int dest
 
     if(SOCK_INFO->sockfd == -1){
         errno = SOCK_INFO->err;
+        printf("Error in binding\n");
         reset();
         return -1;
     }
@@ -163,6 +164,7 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     // check if the socket is valid
     if(SM[socket].udp_sockfd == -1){
         errno = EBADF;
+        printf("Invalid socket\n");
         return -1;
     }
 
@@ -175,21 +177,24 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     if(strcmp(SM[socket].ip_other, dest_ip) != 0 || SM[socket].port_other != dest_port){
         // ENOTFOUND errno?
         errno = EDESTADDRREQ;
+        printf("Destination port and ip not same %d, %s , %s, %d\n", dest_port, dest_ip, SM[socket].ip_other, SM[socket].port_other);
         return -1;
     }
-
+    printf("msocket.c | m_sendto function | after checking valid sockid: send mesg: %s\n", (char*)message);
     int isspace = 0;
     char *message_ = (char *)message;
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
         // printf("Using %d MTP socket\n", socket);
         // printf("SM[socket].send_buffer_empty[i] : %d, SM[socket].swnd.sequence[j] = %d \n", SM[socket].send_buffer_empty[i], SM[socket].swnd.sequence_numbers[i]);
         // printf("SM[i].free : %d\n", SM[i].free);
-        if(SM[socket].send_buffer_empty[i] == 1){   
+        if(SM[socket].send_buffer_empty[i] == 1){
+            printf("Using socket in m_sendto: %d\n", socket);   
             isspace = 1;
             SM[socket].send_buffer_empty[i] = 0;
             strcpy(SM[socket].send_buffer[i], message_);
             // printf("Typecasted message: %s\n", SM[socket].send_buffer[i]);
             SM[socket].swnd.size++;
+
             return 0;   // if successful
         }
     }
@@ -197,6 +202,7 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
     // if no space is available in the send buffer, it returns -1 with the global error variable set to ENOBUFS.
     if(!isspace){
         errno = ENOBUFS;
+        printf("No space available in send buffer\n");
         return -1;
     }
 
@@ -247,11 +253,12 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", buffer_);
     if(SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] == 0){
         ismsg = 1;
-        SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] = 1;
+        
         strcpy((char*)buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
         memset(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]], 0,sizeof(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]));
         // Returning the length of the message received.
         // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", (char*)buffer);
+        SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] = 1;
         return strlen((char*)buffer);
     }
 
@@ -263,12 +270,53 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     return -1;
 }
 
+int check_empty(int socket){
+    key_t key1 = ftok(".", 'b');
+    int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
+    SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
+    int flag = 0;
+    for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
+        if(SM[socket].send_buffer_empty[i] == 0){
+            flag = 1;
+        }
+    }
+    
+    for(int i= 0; i<MAX_WINDOW_SIZE; i++){
+        if(SM[socket].recv_buffer_empty[i] == 0){
+            flag = 1;
+        }
+    }
+
+    return flag;
+}
+
 int m_close(int socket){
 
     // get SM shared memory
     key_t key1 = ftok(".", 'b');
     int shmid1 = shmget(key1, N*sizeof(SM_), 0777|IPC_CREAT);
     SM_ *SM = (SM_*)shmat(shmid1, 0, 0);
+
+    while(check_empty(socket)){
+        sleep(1);
+    }
+    printf(" CLOSING....\n");
+
+    // get sockinfo shared memory
+    key_t key = ftok(".", 'a');
+    int shmid = shmget(key, sizeof(sockinfo), 0777|IPC_CREAT);
+    // initialize the shared memory
+    sockinfo *SOCK_INFO = (sockinfo*)shmat(shmid, 0, 0);
+
+    init_sem();
+
+    SOCK_INFO->sockfd = SM[socket].udp_sockfd;
+    SOCK_INFO->port = -1;
+    signal_sem(sem1);
+
+    wait_sem(sem2);
+    reset();
 
     close(SM[socket].udp_sockfd);
     SM[socket].free = 1;
@@ -278,8 +326,13 @@ int m_close(int socket){
     memset(SM[socket].ip_other, 0, sizeof(SM[socket].ip_other));
     memset(SM[socket].send_buffer, 0, sizeof(SM[socket].send_buffer));
     memset(SM[socket].recv_buffer, 0, sizeof(SM[socket].recv_buffer));
-    memset(SM[socket].send_buffer_empty, 1, sizeof(SM[socket].send_buffer_empty));  // if empty, 1 else 0
-    memset(SM[socket].recv_buffer_empty, 1, sizeof(SM[socket].recv_buffer_empty));
+    for(int j = 0; j<MAX_WINDOW_SIZE*2; j++){
+        SM[socket].send_buffer_empty[j] = 1;
+        SM[socket].sent_unack[j] = 0;
+    }
+    for(int j = 0; j<MAX_WINDOW_SIZE; j++){
+        SM[socket].recv_buffer_empty[j] = 1;
+    }
     memset(SM[socket].swnd.sequence_numbers, 0, sizeof(SM[socket].swnd.sequence_numbers));
     memset(SM[socket].rwnd.sequence_numbers, 0, sizeof(SM[socket].rwnd.sequence_numbers));
     memset(SM[socket].sent_unack, 0, sizeof(SM[socket].sent_unack));
