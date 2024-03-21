@@ -333,6 +333,8 @@ int m_close(int socket){
     for(int j = 0; j<MAX_WINDOW_SIZE; j++){
         SM[socket].recv_buffer_empty[j] = 1;
     }
+    SM[socket].swnd.size = 0;
+    SM[socket].rwnd.size = 0;
     memset(SM[socket].swnd.sequence_numbers, 0, sizeof(SM[socket].swnd.sequence_numbers));
     memset(SM[socket].rwnd.sequence_numbers, 0, sizeof(SM[socket].rwnd.sequence_numbers));
     memset(SM[socket].sent_unack, 0, sizeof(SM[socket].sent_unack));
