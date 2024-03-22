@@ -32,19 +32,21 @@ int main(){
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(dest_PORT);
     dest_addr.sin_addr.s_addr = inet_addr(dest_IP);
-    sleep(2);
+    // sleep(2);
     int len = m_sendto(sockfd, hello, strlen(hello), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len2 = m_sendto(sockfd, msg2, strlen(msg2), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len3 = m_sendto(sockfd, msg3, strlen(msg3), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len4 = m_sendto(sockfd, msg4, strlen(msg4), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+    // sleep(20);
     int len5 = m_sendto(sockfd, msg5, strlen(msg5), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len6 = m_sendto(sockfd, msg6, strlen(msg6), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len7 = m_sendto(sockfd, msg7, strlen(msg7), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len8 = m_sendto(sockfd, msg8, strlen(msg8), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len9 = m_sendto(sockfd, msg9, strlen(msg9), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     int len10 = m_sendto(sockfd, msg10, strlen(msg10), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+    sleep(15);
     int len11 = m_sendto(sockfd, msg11, strlen(msg11), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
 
     printf("len = %d \n", len);
-    m_close(sockfd);
+    // m_close(sockfd);
 }

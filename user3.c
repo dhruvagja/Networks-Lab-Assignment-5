@@ -7,8 +7,8 @@
 int main(){
     int sockfd;
     char buffer[MAXLINE];
-    char *hello = "Hello from user3";
-    printf("Message : %s\n", hello);
+    // char *hello = "Hello from user3";
+    // printf("Message : %s\n", hello);
     char IP[16] = "127.0.0.1";
     int PORT = 8080;
     char dest_IP[16] = "127.0.0.1";
@@ -23,8 +23,40 @@ int main(){
     dest_addr.sin_port = htons(dest_PORT);
     dest_addr.sin_addr.s_addr = inet_addr(dest_IP);
 
-    int len = m_sendto(sockfd, hello, strlen(hello), 0, (const struct sockaddr *) &dest_addr, dest_PORT);
+    // int len = m_sendto(sockfd, hello, strlen(hello), 0, (const struct sockaddr *) &dest_addr, dest_PORT);
 
-    printf("len = %d \n", len);
+    // Read from file 7.7-KB.txt
+
+    FILE *fp;
+    fp = fopen("7.7-KB.txt", "r");
+    if (fp == NULL){
+        printf("File not found\n");
+        return 0;
+    }
+
+    // Copy to buffer
+    // Read including end of file
+    size_t bytesRead;
+    memset(buffer, 0, MAXLINE);
+    while ((bytesRead = fread(buffer, sizeof(char), 100, fp)) > 0) {
+        // buffer[bytesRead] = '\0'; // Null-terminate the buffer
+        int len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+        while(len == -2){
+            len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+            sleep(1);
+        }
+        memset(buffer, 0, MAXLINE);
+    }
+
+    strcpy(buffer, "EOF");
+    int len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+    while(len == -2){
+        len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
+        sleep(1);
+    }
+
+
+
+    
     m_close(sockfd);
 }

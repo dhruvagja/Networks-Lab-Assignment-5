@@ -72,14 +72,13 @@ int m_socket(int domain, int type, int protocol){
             // return i;
 
             free_entry = 1;
-            init_sem();
             // printf("signaling sem1 = %d\n", sem1);
             signal_sem(sem1);
             wait_sem(sem2);
 
             if(SOCK_INFO->sockfd == -1){
                 errno = SOCK_INFO->err;
-                signal_sem(mutex);
+                // signal_sem(mutex);
                 return -1;
             }
             else{
@@ -98,7 +97,7 @@ int m_socket(int domain, int type, int protocol){
                 reset();
                 // signal_sem(&sem1);
                 // printf("Returning from m_socket, MTP socket : %d\n", i);
-                signal_sem(mutex);
+                // signal_sem(mutex);
                 return i;
             }
         }
@@ -191,7 +190,7 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
         printf("Destination port and ip not same %d, %s , %s, %d\n", dest_port, dest_ip, SM[socket].ip_other, SM[socket].port_other);
         return -1;
     }
-    printf("msocket.c | m_sendto function | after checking valid sockid: send mesg: %s\n", (char*)message);
+    // printf("msocket.c | m_sendto function | after checking valid sockid: send mesg: %s\n", (char*)message);
     int isspace = 0;
     char *message_ = (char *)message;
 
@@ -200,27 +199,31 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
         // printf("Using %d MTP socket\n", socket);
         // printf("SM[socket].send_buffer_empty[i] : %d, SM[socket].swnd.sequence[j] = %d \n", SM[socket].send_buffer_empty[i], SM[socket].swnd.sequence_numbers[i]);
         // printf("SM[i].free : %d\n", SM[i].free);
+        // for(int j=0; j<2*MAX_WINDOW_SIZE; j++){
+
+        // }
         if(SM[socket].send_buffer_empty[SM[socket].swnd.sequence_numbers[i]] == 1){
-            printf("Using socket in m_sendto: %d\n", socket);   
+            // printf("Using socket in m_sendto: %d\n", socket);   
             isspace = 1;
-            SM[socket].send_buffer_empty[i] = 0;
-            strcpy(SM[socket].send_buffer[i], message_);
+            SM[socket].send_buffer_empty[SM[socket].swnd.sequence_numbers[i]] = 0;
+            printf("seq_no in msocket = %d\n", SM[socket].swnd.sequence_numbers[i]);
+            strcpy(SM[socket].send_buffer[SM[socket].swnd.sequence_numbers[i]], message_);
             // printf("Typecasted message: %s\n", SM[socket].send_buffer[i]);
 
             // as a message is sent, maximum messages that can be furthur sent are reduced by 1
-            SM[socket].swnd.size--;
+            // SM[socket].swnd.size--;
             signal_sem(mutex);
             return 0;   // if successful
         }
     }
 
     signal_sem(mutex);
-    printf("Signal Semaphore\n");
+    // printf("Signal Semaphore\n");
     // if no space is available in the send buffer, it returns -1 with the global error variable set to ENOBUFS.
     if(!isspace){
         errno = ENOBUFS;
-        printf("No space available in send buffer\n");
-        return -1;
+        // printf("No space available in send buffer\n");
+        return -2;
     }
 
     return -1;
@@ -246,22 +249,20 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     int src_port = ntohs(src->sin_port);
     char *src_ip = inet_ntoa(src->sin_addr);
 
-    // check if the source port and ip are same as the one in the SM
-    // if(strcmp(SM[socket].ip_other, src_ip) != 0 || SM[socket].port_other != src_port){
-    //     // ENOTFOUND errno?
-
-    //     printf("Source port and ip not same %d, %s \n", src_port, src_ip);
-    //     errno = EDESTADDRREQ;
-    //     return -1;
-    // }
-
+   
     int ismsg = 0;
     // char *buffer_ = (char *)buffer;
     // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", buffer_);
     wait_sem(mutex);
+    // printf("Before if block\n");
+    // for(int i = 0; i< MAX_WINDOW_SIZE; i++){
+    //     printf("buffer[%d] = %s\n", i, SM[socket].recv_buffer[i]);
+    // }
     if(SM[socket].recv_buffer_empty[SM[socket].rwnd.sequence_numbers[0]] == 0){
+        // printf("In the if block\n");
         ismsg = 1;
         strcpy((char*)buffer, SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]);
+
         memset(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]], 0,sizeof(SM[socket].recv_buffer[SM[socket].rwnd.sequence_numbers[0]]));
         // Returning the length of the message received.
         // printf("msocket.c | m_recvfrom function | after checking valid sockid: senrecvd mesg: %s\n", (char*)buffer);
@@ -311,14 +312,14 @@ int check_empty(int socket){
     int flag = 0;
     wait_sem(mutex);
     for(int i=0; i<MAX_WINDOW_SIZE*2; i++){
-        printf("send_buffer_empty[%d] = %d, send_buffer[%d] = %d\n", i, SM[socket].send_buffer_empty[i], i, SM[socket].send_buffer[i]);
+        // printf("send_buffer_empty[%d] = %d, send_buffer[%d] = %d\n", i, SM[socket].send_buffer_empty[i], i, SM[socket].send_buffer[i]);
         if(SM[socket].send_buffer_empty[i] == 0){
             flag = 1;
         }
     }
     
     for(int i= 0; i<MAX_WINDOW_SIZE; i++){
-        printf("recv_buffer_empty[%d] = %d, recv_buffer[%d] = %s\n", i, SM[socket].recv_buffer_empty[i], i, SM[socket].recv_buffer[i]);
+        // printf("recv_buffer_empty[%d] = %d, recv_buffer[%d] = %s\n", i, SM[socket].recv_buffer_empty[i], i, SM[socket].recv_buffer[i]);
         if(SM[socket].recv_buffer_empty[i] == 0){
             flag = 1;
         }
@@ -370,7 +371,7 @@ int m_close(int socket){
     for(int j = 0; j<MAX_WINDOW_SIZE; j++){
         SM[socket].recv_buffer_empty[j] = 1;
     }
-    SM[socket].swnd.size = 10;
+    SM[socket].swnd.size = 5;
     SM[socket].rwnd.size = 5;
     // memset(SM[socket].swnd.sequence_numbers, 0, sizeof(SM[socket].swnd.sequence_numbers));
     // memset(SM[socket].rwnd.sequence_numbers, 0, sizeof(SM[socket].rwnd.sequence_numbers));
@@ -387,8 +388,12 @@ int m_close(int socket){
 }
 
 int dropMessage(float prob){
+    // return 0;
     srand(time(0)); 
     float r = (float)rand()/(float)(RAND_MAX);
+    FILE *fptr = fopen("dropped.txt", "a");
+    fprintf(fptr, "on r = %f\n", r);
+    fclose(fptr);
     if(r < prob){
         return 1;
     }

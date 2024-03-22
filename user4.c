@@ -23,10 +23,26 @@ int main(){
     socklen_t dest_len = sizeof(dest_addr);
     int len = -1;
 
+    FILE *fp;
+    
+    memset(buffer, 0, MAXLINE);
     while(len < 0){
         len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
+        if(len > 0 && strcmp(buffer, "EOF") == 0){
+            break;
+        }
+        if(len > 0) {
+            printf("buff = %s\n", buffer);
+            fp = fopen("received.txt", "a");
+            fprintf(fp, "%s", buffer);
+            fclose(fp);
+        }
+        memset(buffer, 0, MAXLINE);
+        len = -1;
         sleep(1);
     }
+
+
     printf("received from user1: %s\n", buffer);
 
     m_close(sockfd);

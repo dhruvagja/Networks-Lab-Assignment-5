@@ -13,8 +13,8 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <time.h>
-#define T 5
-#define p 0.05
+#define T 10
+#define p 0.5
 #define SOCK_MTP 0
 
 #define MAXLINE 1024

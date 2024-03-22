@@ -42,10 +42,18 @@
 // };
 
 
-#define wait_sem(s) semop(s, &pop, 1)    
-#define signal_sem(s) semop(s, &vop, 1) 
+#define wait_sem(s) semop(s, &pop1, 1)    
+#define signal_sem(s) semop(s, &vop1, 1) 
 
-struct sembuf pop = {0, -1, 0}, vop = {0, 1, 0};
+struct sembuf pop1 = {0, -1, 0}, vop1 = {0, 1, 0};
+
+int isTimeout(time_t lastSentTime) {
+    time_t currentTime;
+    time(&currentTime);
+    double timeDiff = difftime(currentTime, lastSentTime);
+    printf("timeDiff = %lf, currentTime = %s, lastSentTime = %s\n", timeDiff, ctime(&currentTime), ctime(&lastSentTime));
+    return timeDiff >= T;
+}
 
 void* receiver(void *arg){
     fd_set readfds;
@@ -58,7 +66,21 @@ void* receiver(void *arg){
     key_t keym = ftok(".", 'm');
     int mutex = semget(keym, 1, 0777|IPC_CREAT);
 
-    int latest_seq_no = -1;
+    int latest_seq_no[N];
+    for(int i = 0; i<N; i++){
+        latest_seq_no[i] = -1;
+    }
+
+    int nospace[N];
+    for(int i=0; i<N; i++){
+        nospace[i] = -1;
+    }
+
+    int count = 0;
+    int init[N];
+    for(int i = 0; i<N; i++){
+        init[i] = 0;
+    }
     
     while(1){
         
@@ -75,36 +97,65 @@ void* receiver(void *arg){
             }
         }
         signal_sem(mutex);
-
-        int nospace = -1;
+        
 
         struct timeval timeout;
         timeout.tv_sec = 10;
         timeout.tv_usec = 0;
 
         int ret = select(max_fd+1, &readfds, NULL, NULL, &timeout);
+
         if(ret == 0){
+            wait_sem(mutex);
             // perror("select() timeout");
-            if(nospace == 1){
-                /*  */
+            printf("Timeout in select()\n");
+            for(int i = 0; i<N; i++){
+                // printf("nospace[%d] = %d, SM[%d].free = %d, SM[%d].rwnd.size = %d\n", i, nospace[i], i, SM[i].free, i, SM[i].rwnd.size);
+                if(nospace[i] == 1 && SM[i].free == 0 && SM[i].rwnd.size > 0){
+
+                    struct sockaddr_in other_addr;
+                    other_addr.sin_family = AF_INET;
+                    other_addr.sin_port = htons(SM[i].port_other);
+                    other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
+
+                    char ACK[50];
+                    memset(ACK, 0, sizeof(ACK));
+                    
+                    sprintf(ACK, "ACK %d, rwnd size = %d\0", latest_seq_no[i], SM[i].rwnd.size);
+                    printf("In receiver thread on timeout: ACK = %s\n", ACK);
+                    sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, sizeof(other_addr));
+                    // sleep(1);
+                }
             }
+            signal_sem(mutex);
             continue;
         }
         else{
         
             for(int i=0; i<N; i++){
-                // wait_sem(mutex);
+                wait_sem(mutex);
                 if(SM[i].free == 0 && FD_ISSET(SM[i].udp_sockfd, &readfds)){
-                    printf("i = %d is set in select\n", i);
+                    // printf("i = %d is set in select\n", i);
                     // if(SM[i].free == 0){
                     // receive
                     // printf("Receiving on socket : %d, and MTP socket: \n", SM[i].udp_sockfd, i);
                     struct sockaddr_in other_addr;
                     socklen_t len = sizeof(other_addr);
-                    char buffer[MAXLINE];
+                    char buffer[MAXLINE+10];
                     memset(buffer, 0, sizeof(buffer));
-                    int n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE, 0, (struct sockaddr*)&other_addr, &len);
+                    int n;
+                    
+                    n = recvfrom(SM[i].udp_sockfd, buffer, MAXLINE+10, 0, (struct sockaddr*)&other_addr, &len);
+                    if(dropMessage(p) && init[i]){
+                        FILE *fptr = fopen("dropped.txt", "a");
+                        printf("Dropped message %s from MTP %d\n", buffer, i);
+                        fprintf(fptr, "Dropped message %s from MTP %d\n", buffer, i);
+                        fclose(fptr);
+                        signal_sem(mutex);
+                        continue;
+                    }
                     printf("Received buffer after recvfrom = %s\n", buffer);
+                    
 
                     //
                     if(strncmp(buffer, "ACK", 3) == 0){
@@ -116,11 +167,11 @@ void* receiver(void *arg){
 
                         int num1 = atoi(num);
                         // Set empty after getting ACK
-                        SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] = 1;
+                        // SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] = 1;
                         // char buff[50];
                         // memset(buff, 0, sizeof(buff));
                         // recvfrom(SM[i].udp_sockfd, buff, sizeof(buff), MSG_DONTWAIT , (struct sockaddr*)&other_addr, &len);
-                        printf("ACK received: %s\n", buffer);
+                        // printf("ACK received: %s\n", buffer);
 
                         // if timeout we break and resend the message
 
@@ -130,23 +181,60 @@ void* receiver(void *arg){
                         // SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] = 1;
                         // memset(SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]], 0, sizeof(SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]]));
                         
-                        SM[i].sent_unack[num1] = 0;
+                        if(SM[i].sent_unack[num1]) SM[i].sent_unack[num1] = 0;
+                        else{
+                            printf("duplicate ack received\n");
+                            for(int j=0; j<2*MAX_WINDOW_SIZE; j++){
+                                if(SM[i].send_buffer_empty[j] == 0 && SM[i].sent_unack[j] == 1){
+                                    SM[i].sent_unack[j] = 0;
+                                    SM[i].swnd.size++;
+                                }
+                            }
+                            for(int j = 0; j< 2*MAX_WINDOW_SIZE; j++){
+                                SM[i].swnd.sequence_numbers[j] = (num1 + 1 + j)%(2*MAX_WINDOW_SIZE);
+                            }
+
+                            signal_sem(mutex);
+                            continue;
+
+                        }
                         SM[i].send_buffer_empty[num1] = 1;
                         memset(SM[i].send_buffer[num1], 0, sizeof(SM[i].send_buffer[num1]));
-                        
+                        // latest_seq_no[i] = num1;
+                        // printf("latest_seq_no[%d] = %d\n", i, latest_seq_no[i]);
                         SM[i].swnd.size++;
                         // int last = SM[i].swnd.sequence_numbers[0];
                         // for(int j=0; j<SM[i].swnd.size; j++){
                         //     SM[i].swnd.sequence_numbers[j] = SM[i].swnd.sequence_numbers[j+1];
                         // }
                         // SM[i].swnd.sequence_numbers[2*MAX_WINDOW_SIZE-1] = last;
-                        // signal_sem(mutex);
-                        printf("sender window size after ACK %d = %d\n", num1, SM[i].swnd.size);
+                        signal_sem(mutex);
+                        // printf("sender window size after ACK %d = %d\n", num1, SM[i].swnd.size);
+                        continue;
+                    }
+
+                    char seq[2];
+                    memset(seq, 0, sizeof(seq));
+                    seq[0] = buffer[4];
+                    seq[1] = '\0';
+
+                    int seq1 = atoi(seq);
+
+                    
+                    if(seq1 != (latest_seq_no[i]+1)%10){
+                        printf("Duplicate message received, so sending ack\n");
+                        char ACK[50];
+                        memset(ACK, 0, sizeof(ACK));
+                        sprintf(ACK, "ACK %d, rwnd size = %d\0", latest_seq_no[i], SM[i].rwnd.size);
+                        printf("seq1 = %d, latest_seq_no[%d] = %d\n", seq1, i, latest_seq_no[i]);
+                        printf("In receiver thread : duplicate ACK for retransmitted mesg = %s\n", ACK);
+                        sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, len);
+                        signal_sem(mutex);
                         continue;
                     }
 
                     if(n == -1){
-                        // signal_sem(mutex);
+                        signal_sem(mutex);
                         if(errno == EAGAIN || errno == EWOULDBLOCK){
                             
                             continue;
@@ -170,26 +258,35 @@ void* receiver(void *arg){
                         // printf("recv: %s\n", buffer);
                         // printf("In receiver thread : received message\n");
                         int num1;
-                        for(int j=0; j<SM[i].rwnd.size; j++){
+                        int flag = 0;
+                        for(int j=0; j<MAX_WINDOW_SIZE; j++){
+                            // printf("SM[%d].recv_buffer_empty[SM[%d].rwnd.sequence_numbers[%d]] = %d\n", i, i, j, SM[i].recv_buffer_empty[SM[i].rwnd.sequence_numbers[j]]);
                             if(SM[i].recv_buffer_empty[SM[i].rwnd.sequence_numbers[j]] == 1){
+                                if(init[i] == 0){
+                                    init[i] = 1;
+                                }
                                 printf("Seq Num = %d\n", SM[i].rwnd.sequence_numbers[j]);
-                                nospace = 0;
+                                nospace[i] = 0;
+                                flag = 1;
                                 seq_no = SM[i].rwnd.sequence_numbers[j];
-                                latest_seq_no = SM[i].rwnd.sequence_numbers[j];
+                                
+                                // latest_seq_no = SM[i].rwnd.sequence_numbers[j];
+                            
                                 SM[i].recv_buffer_empty[seq_no] = 0;
                                 char msg[MAXLINE];
                                 memset(msg, 0, sizeof(msg));
                                 char num[2];
                                 memset(num, 0, sizeof(num));
-                                for(int k=0; k<2; k++){
+                                for(int k=0; k<1; k++){
                                     num[k] = buffer[k+4];
                                 }
                                 num1 = atoi(num);
-                                for(int k=0; k<strlen(buffer); k++){
-                                    msg[k] = buffer[k+6];
+                                for(int k=6; k<strlen(buffer); k++){
+                                    msg[k-6] = buffer[k];
                                 }
-                                msg[strlen(buffer)-6] = '\0';
+                                // msg[strlen(buffer)-6] = '\0';
                                 strcpy(SM[i].recv_buffer[seq_no], msg);
+                                printf("Received message : %s, i = %d, seq_no = %d\n", SM[i].recv_buffer[seq_no], i, seq_no);
                                 // if(SM[i].rwnd.size == 5){
                                 //     printf("Receiver window full\n");
                                 //     nospace = 1;
@@ -202,24 +299,34 @@ void* receiver(void *arg){
                                 break;
                             }
                         }
-
-                        if(nospace == -1) nospace = 1;
+                        
+                        if(flag == 0) nospace[i] = 1;
                         else{
                             // there was space in the buffer and message was received
                             // send ACK
+
+                            latest_seq_no[i] = num1;
+
+                            // if(num1 == 4 && !count) {
+                            //     count++;
+                            //     signal_sem(mutex);
+                            //     continue;
+                            // }
                             char ACK[50];
                             memset(ACK, 0, sizeof(ACK));
                             
                             sprintf(ACK, "ACK %d, rwnd size = %d\0", num1, SM[i].rwnd.size);
                             printf("In receiver thread : ACK = %s\n", ACK);
                             sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, len);
+                            
                             sleep(1);
                         }
+                        printf("nospace[%d] = %d\n", i, nospace[i]);
 
                     }
 
                 }
-                // signal_sem(mutex);
+                signal_sem(mutex);
             }
             
         }
@@ -238,6 +345,8 @@ void* sender(void *arg){
     key_t keym = ftok(".", 'm');
     int mutex = semget(keym, 1, 0777|IPC_CREAT);
 
+    time_t lastSentTime[N][MAX_WINDOW_SIZE*2];
+
     // Add MTP header to the message
     while(1){
         // sleep for some time < T/2
@@ -245,27 +354,58 @@ void* sender(void *arg){
 
         for(int i = 0; i< N; i++){
             wait_sem(mutex);
-            if(SM[i].free == 0){
+            if(SM[i].free == 0 ){
+
+                for(int j=0; j<2*MAX_WINDOW_SIZE; j++){
+                    // printf("lastsenttime[%d][%d] = %s\n", i, j, ctime(&lastSentTime[i][j]));
+                    if(SM[i].sent_unack[j] == 1 && isTimeout(lastSentTime[i][j])){
+                        printf("Timeout in sender thread for %d mesg in %d socket\n", j, i);
+                        for(int k=0; k<2*MAX_WINDOW_SIZE; k++){
+                            if(SM[i].send_buffer_empty[k] == 0 && SM[i].sent_unack[k] == 1){
+                                SM[i].sent_unack[k] = 0;
+                                SM[i].swnd.size++;
+                            }
+                        }
+                        for(int k = 0; k< 2*MAX_WINDOW_SIZE; k++){
+                            SM[i].swnd.sequence_numbers[k] = (j + k)%(2*MAX_WINDOW_SIZE);
+                        }
+
+                        printf("sender sequence number: ");
+                        for(int k = 0; k<2*MAX_WINDOW_SIZE; k++){
+                            printf("%d, ", SM[i].swnd.sequence_numbers[k]);
+                        }
+                    }
+                }
+
                 // for(int j=0; j<N; j++){
-                if(SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] == 0){
+                // printf("SM[%d].send_buffer_empty[SM[%d].swnd.sequence_numbers[0]] = %d && SM[%d].sent_unack[SM[%d].swnd.sequence_numbers[0]] = %d\n", i, i, SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]], i, i, SM[i].sent_unack[SM[i].swnd.sequence_numbers[0]]);
+                // printf("seq_no in sender thread = %d\n", SM[i].swnd.sequence_numbers[0]);
+                if(SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] == 0 && SM[i].sent_unack[SM[i].swnd.sequence_numbers[0]] == 0){
+                    // for(int j = 0; j< SM[i].swnd.size; j++){
+                    //     printf("%d, ", SM[i].swnd.sequence_numbers[j]);
+                    // }printf("send window seq\n");
                     // send the message
                     struct sockaddr_in other_addr;
                     other_addr.sin_family = AF_INET;
                     other_addr.sin_port = htons(SM[i].port_other);
                     other_addr.sin_addr.s_addr = inet_addr(SM[i].ip_other);
 
-                    printf("Sending to : %s, %d\n", SM[i].ip_other, SM[i].port_other);
-                    
                     socklen_t len = sizeof(other_addr);
-                    for(int k=0; k<MAX_WINDOW_SIZE; k++){
-                        printf("%d, ", SM[i].swnd.sequence_numbers[k]);
-                    }
-                    printf("\n");
+                    // for(int k=0; k<MAX_WINDOW_SIZE; k++){
+                    //     printf("%d, ", SM[i].swnd.sequence_numbers[k]);
+                    // }
+                    // printf("\n");
                     char buffer[MAXLINE+10];
                     memset(buffer, 0, sizeof(buffer));
                     sprintf(buffer, "MTP %d %s", SM[i].swnd.sequence_numbers[0], SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]]);
                     // sendto(SM[i].udp_sockfd, SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]], strlen(SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]]), 0, (struct sockaddr*)&other_addr, len);
-                    sendto(SM[i].udp_sockfd, buffer, strlen(buffer), 0, (struct sockaddr*)&other_addr, len);
+                    if(SM[i].swnd.size > 0) sendto(SM[i].udp_sockfd, buffer, strlen(buffer), 0, (struct sockaddr*)&other_addr, len);
+                    else{
+                        printf("Sender window is empty, maybe recv buffer is full\n");
+                        signal_sem(mutex);
+                        continue;
+                    }
+                    time(&lastSentTime[i][SM[i].swnd.sequence_numbers[0]]);
                     printf("sendto: %s\n", SM[i].send_buffer[SM[i].swnd.sequence_numbers[0]]);
                     SM[i].sent_unack[SM[i].swnd.sequence_numbers[0]] = 1;
 
@@ -274,7 +414,7 @@ void* sender(void *arg){
                         SM[i].swnd.sequence_numbers[j] = SM[i].swnd.sequence_numbers[j+1];
                     }
                     SM[i].swnd.sequence_numbers[2*MAX_WINDOW_SIZE-1] = last;
-
+                    SM[i].swnd.size--;
                     // // Set empty after getting ACK
                     // SM[i].send_buffer_empty[SM[i].swnd.sequence_numbers[0]] = 1;
                     // char buff[50];
@@ -354,6 +494,7 @@ void* garbage_collector(void *arg){
     while(1){
         for(int i=0; i<N; i++){
             wait_sem(mutex);
+            
             if(SM[i].free == 0){
                 int status;
                 // flag hata dena
@@ -373,7 +514,7 @@ void* garbage_collector(void *arg){
                     memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
                     memset(SM[i].send_buffer_empty, 1, sizeof(SM[i].send_buffer_empty));  // if empty, 1 else 0
                     memset(SM[i].recv_buffer_empty, 1, sizeof(SM[i].recv_buffer_empty));
-                    SM[i].swnd.size = 10;
+                    SM[i].swnd.size = 5;
                     SM[i].rwnd.size = 5;
                     // memset(SM[i].swnd.sequence_numbers, 0, sizeof(SM[i].swnd.sequence_numbers));
                     // memset(SM[i].rwnd.sequence_numbers, 0, sizeof(SM[i].rwnd.sequence_numbers));
@@ -423,7 +564,7 @@ int main(){
         // memset(SM[i].sent_unack, 0, sizeof(SM[i].sent_unack));
         // memset(SM[i].swnd.sequence_numbers, 0, sizeof(SM[i].swnd.sequence_numbers));
         // memset(SM[i].rwnd.sequence_numbers, 0, sizeof(SM[i].rwnd.sequence_numbers));
-        SM[i].swnd.size = 10;
+        SM[i].swnd.size = 5;
         SM[i].rwnd.size = 5;
         for(int j=0; j<MAX_WINDOW_SIZE*2; j++){
             SM[i].swnd.sequence_numbers[j] = j;         // max window size = 10 and buffer size also 10? change it in future
