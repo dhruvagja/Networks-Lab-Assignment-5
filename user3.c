@@ -28,7 +28,7 @@ int main(){
     // Read from file 7.7-KB.txt
 
     FILE *fp;
-    fp = fopen("7.7-KB.txt", "r");
+    fp = fopen("text_file.txt", "r");
     if (fp == NULL){
         printf("File not found\n");
         return 0;
@@ -38,8 +38,10 @@ int main(){
     // Read including end of file
     size_t bytesRead;
     memset(buffer, 0, MAXLINE);
-    while ((bytesRead = fread(buffer, sizeof(char), 100, fp)) > 0) {
+    int count = 0;
+    while ((bytesRead = fread(buffer, sizeof(char), 1000, fp)) > 0) {
         // buffer[bytesRead] = '\0'; // Null-terminate the buffer
+        count++;
         int len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
         while(len == -2){
             len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
@@ -49,12 +51,14 @@ int main(){
     }
 
     strcpy(buffer, "EOF");
+    count++;
     int len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
     while(len == -2){
         len = m_sendto(sockfd, buffer, strlen(buffer), 0, (const struct sockaddr *) &dest_addr, sizeof(dest_addr));
         sleep(1);
     }
 
+    printf("Total actual packets sent: %d\n", count);
 
 
     

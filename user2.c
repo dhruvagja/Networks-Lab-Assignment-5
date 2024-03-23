@@ -23,88 +23,26 @@ int main(){
     socklen_t dest_len = sizeof(dest_addr);
     int len = -1;
 
+    
+    FILE *fp;
+    fp = fopen("second_rec.txt", "a");
 
-    // sleep(20);
-    while(len < 0){
-        // printf("len = %d\n", len);
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("1st msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("2nd msg received from user1: %s\n", buffer);
-    len = -1;
     memset(buffer, 0, MAXLINE);
     while(len < 0){
         len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
+        if(len > 0 && strcmp(buffer, "EOF") == 0){
+            break;
+        }
+        if(len > 0) {
+            // printf("buff = %s\n", buffer);
+            fp = fopen("second_rec.txt", "a");
+            fprintf(fp, "%s", buffer);
+            fclose(fp);
+        }
+        memset(buffer, 0, MAXLINE);
+        len = -1;
         sleep(1);
     }
-    printf("3rd msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("4th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("5th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("6th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("7th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("8th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    // sleep(20);
-    printf("9th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("10th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    while(len < 0){
-        len = m_recvfrom(sockfd, buffer, MAXLINE, 0, (struct sockaddr *) &dest_addr, &dest_len);
-        sleep(1);
-    }
-    printf("11th msg received from user1: %s\n", buffer);
-    len = -1;
-    memset(buffer, 0, MAXLINE);
-    
-    // m_close(sockfd);
+
+    m_close(sockfd);
 }

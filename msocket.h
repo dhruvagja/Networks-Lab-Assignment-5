@@ -14,7 +14,7 @@
 #include <sys/shm.h>
 #include <time.h>
 #define T 10
-#define p 0.5
+#define p 0.25
 #define SOCK_MTP 0
 
 #define MAXLINE 1024

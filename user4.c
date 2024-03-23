@@ -32,7 +32,7 @@ int main(){
             break;
         }
         if(len > 0) {
-            printf("buff = %s\n", buffer);
+            // printf("buff = %s\n", buffer);
             fp = fopen("received.txt", "a");
             fprintf(fp, "%s", buffer);
             fclose(fp);
