@@ -94,7 +94,7 @@ void* receiver(void *arg){
                     char ACK[50];
                     memset(ACK, 0, sizeof(ACK));
                     
-                    sprintf(ACK, "ACK %d, rwnd size = %d\0", latest_seq_no[i], SM[i].rwnd.size);
+                    sprintf(ACK, "ACK %d, rwnd size = %d", latest_seq_no[i], SM[i].rwnd.size);
                     // printf("In receiver thread on timeout: ACK = %s\n", ACK);
                     sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, sizeof(other_addr));
                     // sleep(1);
@@ -180,7 +180,7 @@ void* receiver(void *arg){
                         char ACK[50];
                         memset(ACK, 0, sizeof(ACK));
                         int temp = latest_seq_no[i];
-                        sprintf(ACK, "ACK %d, rwnd size = %d\0", temp, SM[i].rwnd.size);
+                        sprintf(ACK, "ACK %d, rwnd size = %d", temp, SM[i].rwnd.size);
                         sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, len);
                         signal_sem(mutex);
                         continue;
@@ -241,7 +241,7 @@ void* receiver(void *arg){
                             char ACK[50];
                             memset(ACK, 0, sizeof(ACK));
                             
-                            sprintf(ACK, "ACK %d, rwnd size = %d\0", num1, SM[i].rwnd.size);
+                            sprintf(ACK, "ACK %d, rwnd size = %d", num1, SM[i].rwnd.size);
                             // printf("In receiver thread : ACK = %s\n", ACK);
                             sendto(SM[i].udp_sockfd, ACK, strlen(ACK), 0, (struct sockaddr*)&other_addr, len);
                             
@@ -277,7 +277,7 @@ void* sender(void *arg){
     // Add MTP header to the message
     while(1){
         // sleep for some time < T/2
-        sleep(T/10);
+        sleep((T)/5);
 
         for(int i = 0; i< N; i++){
             wait_sem(mutex);
@@ -408,8 +408,12 @@ int main(){
         SM[i].udp_sockfd = 0;
         SM[i].port_other = 0;
         memset(SM[i].ip_other, 0, sizeof(SM[i].ip_other));
-        memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
-        memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
+        for(int j=0; j<MAX_WINDOW_SIZE*2; j++){
+            memset(SM[i].send_buffer[j], 0, sizeof(SM[i].send_buffer[j]));
+            if(j < MAX_WINDOW_SIZE)memset(SM[i].recv_buffer[j], 0, sizeof(SM[i].recv_buffer[j]));
+        }
+        // memset(SM[i].send_buffer, 0, sizeof(SM[i].send_buffer));
+        // memset(SM[i].recv_buffer, 0, sizeof(SM[i].recv_buffer));
         // memset(SM[i].send_buffer_empty, 1, sizeof(SM[i].send_buffer_empty));  // if empty, 1 else 0
         // memset(SM[i].recv_buffer_empty, 1, sizeof(SM[i].recv_buffer_empty));
         for(int j = 0; j<MAX_WINDOW_SIZE*2; j++){
