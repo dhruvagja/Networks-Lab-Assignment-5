@@ -14,8 +14,6 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 
-
-
 #define wait_sem(s) semop(s, &pop1, 1)    
 #define signal_sem(s) semop(s, &vop1, 1) 
 

@@ -173,8 +173,7 @@ ssize_t m_sendto(int socket, const void *message, size_t length, int flags, cons
 
     
     if(strcmp(SM[socket].ip_other, dest_ip) != 0 || SM[socket].port_other != dest_port){
-        // ENOTFOUND errno?
-        errno = EDESTADDRREQ;
+        errno = ENOTCONN;
         printf("Destination port and ip not same %d, %s , %s, %d\n", dest_port, dest_ip, SM[socket].ip_other, SM[socket].port_other);
         return -1;
     }
@@ -267,7 +266,7 @@ ssize_t m_recvfrom(int socket, void *restrict buffer, size_t length, int flags, 
     signal_sem(mutex);
 
     if(!ismsg){
-        errno = ENOBUFS;
+        errno = ENOMSG;
         return -1;
     }
 
